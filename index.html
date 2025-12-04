@@ -1,0 +1,1011 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Jazz Chord Degree Game</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+    <style>
+        /* --- CSSは前回の完璧なレスポンシブ版を維持 --- */
+        :root {
+            --bg-deep: #050505;
+            --bg-surface: #141414;
+            --bg-glass: rgba(30, 30, 30, 0.6);
+            --primary: #00E676;
+            --primary-glow: rgba(0, 230, 118, 0.4);
+            --accent: #6C63FF;
+            --danger: #FF2E55;
+            --warn: #FFAB00;
+            --text-main: #FFFFFF;
+            --text-sub: #888888;
+            --border: rgba(255, 255, 255, 0.1);
+            --radius: 16px;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            background-color: var(--bg-deep);
+            background-image: 
+                radial-gradient(circle at 50% 0%, #1a2a24 0%, transparent 60%),
+                linear-gradient(180deg, rgba(0,0,0,0) 0%, var(--bg-deep) 100%);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            user-select: none;
+            overflow-x: hidden;
+        }
+
+        /* --- Header / Stats Grid (Responsive Bento) --- */
+        .header-grid {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: 16px;
+            width: 100%;
+            max-width: 900px;
+            margin-bottom: 24px;
+            align-items: center;
+        }
+
+        .brand h1 {
+            font-size: clamp(18px, 4vw, 20px);
+            font-weight: 800;
+            margin: 0;
+            letter-spacing: -0.5px;
+            background: linear-gradient(90deg, #fff, #888);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            white-space: nowrap;
+        }
+        .battle-info { font-size: 12px; color: var(--text-sub); margin-top: 4px; font-family: 'JetBrains Mono', monospace; }
+
+        .score-hero {
+            text-align: center;
+            position: relative;
+        }
+        .score-val {
+            font-size: clamp(32px, 8vw, 48px);
+            font-weight: 800;
+            line-height: 1;
+            text-shadow: 0 0 20px rgba(255,255,255,0.1);
+            font-feature-settings: "tnum";
+            transition: transform 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .combo-badge {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--primary);
+            background: rgba(0, 230, 118, 0.1);
+            padding: 4px 12px;
+            border-radius: 20px;
+            border: 1px solid rgba(0, 230, 118, 0.2);
+            display: inline-block;
+            margin-top: 8px;
+        }
+
+        .stats-mini {
+            text-align: right;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: var(--text-sub);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .stats-mini span strong { color: var(--text-main); }
+        .q-count-hl { color: var(--accent) !important; }
+
+        /* --- Timer --- */
+        .timer-track {
+            width: 100%;
+            max-width: 900px;
+            height: 4px;
+            background: var(--bg-surface);
+            border-radius: 2px;
+            margin-bottom: 30px;
+            overflow: hidden;
+        }
+        .timer-fill {
+            height: 100%;
+            background: var(--primary);
+            width: 100%;
+            box-shadow: 0 0 10px var(--primary-glow);
+            transition: width 0.1s linear;
+        }
+
+        /* --- Main Display --- */
+        .chord-section {
+            text-align: center;
+            margin-bottom: 24px;
+            width: 100%;
+        }
+        .chord-name {
+            font-size: clamp(40px, 12vw, 64px);
+            font-weight: 800;
+            letter-spacing: -2px;
+            line-height: 1.1;
+            margin: 0;
+            background: linear-gradient(180deg, #fff 20%, #aaa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 10px 20px rgba(0,0,0,0.5));
+        }
+        .chord-meta {
+            margin-top: 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            background: var(--bg-surface);
+            border-radius: 100px;
+            border: 1px solid var(--border);
+            max-width: 90vw;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .meta-text { color: var(--text-sub); font-size: 13px; font-weight: 500; white-space: nowrap; }
+        .root-tag {
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 4px;
+            color: #000;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        /* --- Fretboard Canvas Container --- */
+        .canvas-container {
+            position: relative;
+            padding: 10px;
+            background: #101010;
+            border-radius: var(--radius);
+            box-shadow: 
+                0 20px 40px -10px rgba(0,0,0,0.8),
+                inset 0 1px 0 rgba(255,255,255,0.1);
+            border: 1px solid var(--border);
+            margin-bottom: 24px;
+            transition: transform 0.2s;
+            width: 100%;
+            max-width: 900px;
+            overflow: hidden;
+        }
+        .canvas-container:active { transform: scale(0.995); }
+        
+        canvas {
+            display: block;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            height: auto;
+            touch-action: none;
+            -webkit-user-select: none;
+        }
+
+        /* --- Controls & Settings --- */
+        .control-deck {
+            width: 100%;
+            max-width: 900px;
+            background: var(--bg-glass);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            box-shadow: 0 4px 30px rgba(0,0,0,0.3);
+        }
+
+        .settings-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+        }
+
+        /* UI Elements */
+        .toggle-btn {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(255,255,255,0.03);
+            padding: 12px 16px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+            border: 1px solid transparent;
+            min-height: 48px;
+        }
+        .toggle-btn:hover { background: rgba(255,255,255,0.06); }
+        .toggle-btn.active { 
+            background: rgba(0, 230, 118, 0.05); 
+            border-color: rgba(0, 230, 118, 0.3);
+        }
+        .toggle-text { font-size: 13px; font-weight: 500; color: var(--text-sub); }
+        .toggle-btn.active .toggle-text { color: var(--text-main); }
+        
+        .switch-ui {
+            width: 36px; height: 20px;
+            background: #333;
+            border-radius: 20px;
+            position: relative;
+            transition: 0.3s;
+            flex-shrink: 0;
+        }
+        .switch-ui::after {
+            content: '';
+            position: absolute;
+            top: 2px; left: 2px;
+            width: 16px; height: 16px;
+            background: #fff;
+            border-radius: 50%;
+            transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .toggle-btn input { display: none; }
+        .toggle-btn input:checked + .switch-ui { background: var(--primary); }
+        .toggle-btn input:checked + .switch-ui::after { transform: translateX(16px); }
+
+        .action-row {
+            display: flex;
+            gap: 12px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            border: none;
+            outline: none;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            font-weight: 700;
+            font-size: 16px;
+            padding: 16px;
+            border-radius: 12px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            touch-action: manipulation;
+        }
+        button:active { transform: scale(0.96); }
+        
+        .btn-primary {
+            background: var(--primary);
+            color: #000;
+            flex: 2;
+            min-width: 140px;
+            box-shadow: 0 4px 20px var(--primary-glow);
+        }
+        .btn-secondary {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            flex: 1;
+        }
+        .btn-danger {
+            background: rgba(255, 46, 85, 0.1);
+            color: var(--danger);
+            border: 1px solid rgba(255, 46, 85, 0.3);
+            flex: 1;
+        }
+        .btn-warn {
+            background: rgba(255, 171, 0, 0.1);
+            color: var(--warn);
+            border: 1px solid rgba(255, 171, 0, 0.3);
+            flex: 1;
+        }
+
+        .status-msg {
+            text-align: center;
+            font-size: 14px;
+            color: var(--text-sub);
+            min-height: 20px;
+            margin-top: 10px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .segmented-control {
+            display: flex;
+            background: #222;
+            padding: 4px;
+            border-radius: 10px;
+            gap: 4px;
+            width: 100%;
+        }
+        .seg-opt {
+            flex: 1;
+            text-align: center;
+            padding: 8px 4px;
+            font-size: 12px;
+            color: #666;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: 0.2s;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .seg-opt.active { background: #444; color: #fff; }
+        .seg-opt input { display: none; }
+        .setting-label {
+            font-size: 12px; color: var(--text-sub); margin-bottom: 6px; display: block;
+        }
+
+        /* --- Mobile Responsive Tweaks --- */
+        @media (max-width: 600px) {
+            body { padding: 12px; }
+            .header-grid { 
+                grid-template-columns: 1fr 1fr; 
+                gap: 12px;
+                margin-bottom: 16px;
+            }
+            .brand { grid-column: 1 / -1; text-align: center; }
+            .brand h1 { font-size: 24px; }
+            .score-hero { text-align: left; }
+            .stats-mini { text-align: right; }
+            .control-deck { padding: 16px; gap: 16px; }
+            .action-row button { font-size: 14px; padding: 14px; }
+            .settings-grid { grid-template-columns: 1fr 1fr; }
+            .settings-grid > div:nth-child(1),
+            .settings-grid > div:nth-child(2) { grid-column: 1 / -1; }
+        }
+    </style>
+</head>
+<body>
+
+    <header class="header-grid">
+        <div class="brand">
+            <h1>Jazz Chord Degree Game</h1>
+            <div class="battle-info">BATTLE: <span id="battleCount">15</span></div>
+        </div>
+        
+        <div class="score-hero">
+            <div id="scoreVal" class="score-val">12800</div>
+            <div id="comboVal" class="combo-badge">COMBO 16</div>
+        </div>
+
+        <div class="stats-mini">
+            <span>HIGH: <strong id="hiScore">24500</strong></span>
+            <span>QUESTIONS: <strong id="qCount" class="q-count-hl">16</strong></span>
+            <span>MAX COMBO: <strong id="maxCombo">32</strong></span>
+        </div>
+    </header>
+
+    <div class="timer-track">
+        <div id="timerBar" class="timer-fill"></div>
+    </div>
+
+    <section class="chord-section">
+        <h2 id="chordDisplay" class="chord-name">READY</h2>
+        <div class="chord-meta">
+            <span id="rootTag" class="root-tag" style="background:#333; color:#fff">WAITING</span>
+            <span id="chordDetail" class="meta-text">System Initialization...</span>
+        </div>
+    </section>
+
+    <div class="canvas-container">
+        <canvas id="fretboard"></canvas>
+    </div>
+
+    <div class="control-deck">
+        <div class="status-msg" id="msgBox">Tap 'START SYSTEM' to begin</div>
+
+        <button id="startBtn" class="btn-primary" style="width:100%; font-size:18px;">
+            <span>▶</span> START SYSTEM
+        </button>
+
+        <div class="action-row" id="gameControls" style="display:none;">
+            <button id="nextBtn" class="btn-primary">NEXT PHASE</button>
+            <button id="cheatBtn" class="btn-danger">REVEAL</button>
+            <button id="stopBtn" class="btn-secondary" style="max-width: 80px;">STOP</button>
+        </div>
+
+        <div class="action-row" id="pauseControls" style="display:none;">
+            <button id="resumeBtn" class="btn-primary">RESUME</button>
+            <button id="quitBtn" class="btn-warn">QUIT GAME</button>
+        </div>
+
+        <div class="settings-grid">
+            <div class="toggle-btn" style="cursor:default; background:transparent; padding:0; border:none; display:block;">
+                <span class="setting-label">Root String Focus</span>
+                <div class="segmented-control">
+                    <label class="seg-opt active">ALL <input type="radio" name="rootMode" value="all" checked></label>
+                    <label class="seg-opt">6th <input type="radio" name="rootMode" value="6"></label>
+                    <label class="seg-opt">5th <input type="radio" name="rootMode" value="5"></label>
+                    <label class="seg-opt">4th <input type="radio" name="rootMode" value="4"></label>
+                </div>
+            </div>
+
+            <div class="toggle-btn" style="cursor:default; background:transparent; padding:0; border:none; display:block;">
+                 <span class="setting-label">Display Mode</span>
+                <div class="segmented-control">
+                    <label class="seg-opt active" id="segDegree">
+                        Degree
+                        <input type="radio" name="dispMode" value="degree" checked onchange="updateDraw()">
+                    </label>
+                    <label class="seg-opt" id="segNote">
+                        Note
+                        <input type="radio" name="dispMode" value="note" onchange="updateDraw()">
+                    </label>
+                </div>
+            </div>
+
+            <label class="toggle-btn active">
+                <span class="toggle-text">Auto Next (3s)</span>
+                <input type="checkbox" id="chkAutoNext" checked>
+                <div class="switch-ui"></div>
+            </label>
+
+            <label class="toggle-btn">
+                <span class="toggle-text">Hard Mode</span>
+                <input type="checkbox" id="chkHardMode">
+                <div class="switch-ui"></div>
+            </label>
+            <label class="toggle-btn active">
+                <span class="toggle-text">Timer</span>
+                <input type="checkbox" id="chkTimer" checked onchange="this.parentNode.classList.toggle('active')">
+                <div class="switch-ui"></div>
+            </label>
+            <label class="toggle-btn active">
+                <span class="toggle-text">Fog (Root Only)</span>
+                <input type="checkbox" id="chkRootOnly" checked onchange="this.parentNode.classList.toggle('active')">
+                <div class="switch-ui"></div>
+            </label>
+            <label class="toggle-btn active">
+                <span class="toggle-text">Auto Play</span>
+                <input type="checkbox" id="chkAutoPlay" checked onchange="this.parentNode.classList.toggle('active')">
+                <div class="switch-ui"></div>
+            </label>
+        </div>
+    </div>
+
+<script>
+    // ========================================================
+    // Logic 
+    // ========================================================
+    const noteNames = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
+    const intervalsMap = { "Maj7":[0,4,7,11], "7":[0,4,7,10], "m7":[0,3,7,10], "m7b5":[0,3,6,10] };
+    const shapeLogic = {
+        root6: [{type:"Maj7",strIndices:[0,2,3],offsets:[0,1,1],desc:"Shell"}, {type:"7",strIndices:[0,2,3],offsets:[0,0,1],desc:"Shell"}, {type:"m7",strIndices:[0,2,3],offsets:[0,0,0],desc:"Shell"}, {type:"m7b5",strIndices:[0,2,3,4],offsets:[0,0,0,-1],desc:"Drop2"}],
+        root5: [{type:"Maj7",strIndices:[1,2,3],offsets:[0,-1,1],desc:"Shell"}, {type:"7",strIndices:[1,2,3],offsets:[0,-1,0],desc:"Shell"}, {type:"m7",strIndices:[1,3,4],offsets:[0,0,1],desc:"Spread"}, {type:"m7b5",strIndices:[1,2,3,4],offsets:[0,1,0,1],desc:"4-Note"}],
+        root4: [{type:"Maj7",strIndices:[2,3,4,5],offsets:[0,2,2,2],desc:"Drop2"}, {type:"7",strIndices:[2,3,4,5],offsets:[0,2,1,2],desc:"Drop2"}, {type:"m7",strIndices:[2,3,4,5],offsets:[0,2,1,1],desc:"Drop2"}, {type:"m7b5",strIndices:[2,3,4,5],offsets:[0,1,1,1],desc:"Drop2"}]
+    };
+    const easyRoots = ["C", "F", "Bb", "Eb", "G", "D", "A", "E"];
+    const allRoots = [
+        {note:"E",val:4,pos:{6:0,5:7,4:2}}, {note:"F",val:5,pos:{6:1,5:8,4:3}}, {note:"Gb",val:6,pos:{6:2,5:9,4:4}}, {note:"G",val:7,pos:{6:3,5:10,4:5}}, {note:"Ab",val:8,pos:{6:4,5:11,4:6}}, {note:"A",val:9,pos:{6:5,5:0,4:7}},
+        {note:"Bb",val:10,pos:{6:6,5:1,4:8}}, {note:"B",val:11,pos:{6:7,5:2,4:9}}, {note:"C",val:0,pos:{6:8,5:3,4:10}}, {note:"Db",val:1,pos:{6:9,5:4,4:11}}, {note:"D",val:2,pos:{6:10,5:5,4:0}}, {note:"Eb",val:3,pos:{6:11,5:6,4:1}}
+    ];
+
+    // JSの初期状態も高得点にしておくことで、ロード後の一瞬の表示崩れを防ぐ
+    let state = { 
+        currentChallenge:null, 
+        isAnswerRevealed:false, 
+        isPaused: false,
+        score: 12800, // 初期スコア高得点
+        combo: 16,    // 初期コンボ
+        questionCount: 16,
+        timerId:null, 
+        timeLeft:100, 
+        maxTimeMs:10000, 
+        markers:[], 
+        autoNextId: null 
+    };
+    // レコードの初期値も高く設定（localStorageがない場合用）
+    let records = { highScore: 24500, maxCombo: 32, battleCount: 15 };
+
+    // --- UI Helpers ---
+    function updateSegmentedUI(name) {
+        document.querySelectorAll(`input[name="${name}"]`).forEach(r => {
+            if(r.checked) r.parentElement.classList.add('active');
+            else r.parentElement.classList.remove('active');
+        });
+    }
+
+    document.querySelectorAll('input[name="dispMode"]').forEach(r => {
+        r.addEventListener('change', (e) => {
+            updateSegmentedUI('dispMode');
+            updateDraw();
+        });
+    });
+
+    document.querySelectorAll('input[name="rootMode"]').forEach(r => {
+        r.addEventListener('change', (e) => {
+            updateSegmentedUI('rootMode');
+        });
+    });
+
+    document.querySelectorAll('.toggle-btn input[type="checkbox"]').forEach(c => {
+        c.addEventListener('change', function() {
+            if(this.checked) this.parentNode.classList.add('active');
+            else this.parentNode.classList.remove('active');
+        });
+    });
+
+    const getSetting = (id) => document.getElementById(id)?.checked || false;
+    const getLabelMode = () => document.querySelector('input[name="dispMode"]:checked').value;
+    const getRootMode = () => document.querySelector('input[name="rootMode"]:checked').value;
+
+    function loadRecords() {
+        const saved = localStorage.getItem('chord_degree_records'); 
+        if(saved) records = JSON.parse(saved);
+        // ここではupdateScoreUIを呼ばないことで、HTMLの初期高得点表示を維持する
+        // updateScoreUI(); 
+    }
+    function saveRecords(incrementBattle=false) {
+        if(incrementBattle) records.battleCount = (records.battleCount || 0) + 1;
+        if(state.score > records.highScore) records.highScore = state.score;
+        if(state.combo > records.maxCombo) records.maxCombo = state.combo;
+        localStorage.setItem('chord_degree_records', JSON.stringify(records));
+        document.getElementById('hiScore').innerText = records.highScore;
+        document.getElementById('maxCombo').innerText = records.maxCombo;
+    }
+
+    // --- Audio ---
+    let sampler, synthHit, synthMiss;
+    const openStringMidi = [40, 45, 50, 55, 59, 64]; 
+    async function initAudio() {
+        if(sampler) { startGame(); return; } 
+        await Tone.start();
+        updateMsg("LOADING SOUND MODULES...");
+        sampler = new Tone.Sampler({
+            urls: { "E2":"E2.mp3", "A2":"A2.mp3", "D3":"D3.mp3", "G3":"G3.mp3", "B3":"B3.mp3", "E4":"E4.mp3" },
+            release: 1,
+            baseUrl: "https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_guitar_nylon-mp3/",
+            onload: () => {
+                updateMsg("SYSTEM ONLINE");
+                startGame();
+            }
+        }).toDestination();
+        synthHit = new Tone.PolySynth(Tone.Synth).toDestination(); synthHit.volume.value = -12;
+        synthMiss = new Tone.MembraneSynth().toDestination();
+    }
+    function playGuitarTone(s, f) { if(sampler) sampler.triggerAttackRelease(Tone.Frequency(openStringMidi[s]+f, "midi").toNote(), "8n"); }
+    function playChord() {
+        if(!state.currentChallenge || !sampler || state.isPaused) return;
+        const now = Tone.now();
+        state.currentChallenge.exampleNotes.forEach((n,i) => {
+            const midi = openStringMidi[n.s] + n.f;
+            sampler.triggerAttackRelease(Tone.Frequency(midi,"midi").toNote(), "2n", now+i*0.05);
+        });
+    }
+
+    // --- Game Logic ---
+    function startGame() { 
+        // ゲーム開始時はスコアをリセットする
+        state.score=0; 
+        state.combo=0; 
+        state.questionCount=0; 
+        state.isPaused = false;
+        saveRecords(true); 
+        updateScoreUI(); // ここで表示が0になる
+        
+        document.getElementById('startBtn').style.display = 'none';
+        document.getElementById('gameControls').style.display = 'flex';
+        document.getElementById('pauseControls').style.display = 'none';
+        
+        generateNext(); 
+    }
+
+    function pauseGame() {
+        state.isPaused = true;
+        if(state.timerId) clearInterval(state.timerId);
+        if(state.autoNextId) clearInterval(state.autoNextId);
+        
+        document.getElementById('gameControls').style.display = 'none';
+        document.getElementById('pauseControls').style.display = 'flex';
+        
+        updateMsg("GAME PAUSED");
+        document.getElementById('chordDisplay').innerText = "PAUSED";
+        document.getElementById('chordDetail').innerText = "Press RESUME to continue";
+        document.getElementById('timerBar').style.background = "#555";
+        draw(); 
+    }
+
+    function resumeGame() {
+        state.isPaused = false;
+        document.getElementById('pauseControls').style.display = 'none';
+        document.getElementById('gameControls').style.display = 'flex';
+        
+        if(state.currentChallenge) {
+            document.getElementById('chordDisplay').innerText = state.currentChallenge.name;
+            document.getElementById('chordDetail').innerText = state.currentChallenge.detail;
+            updateMsg("RESUMED");
+        } else {
+            generateNext();
+            return;
+        }
+
+        if(getSetting('chkTimer') && !state.isAnswerRevealed) {
+            startTimer(state.timeLeft); 
+        } else if (state.isAnswerRevealed && getSetting('chkAutoNext')) {
+            updateMsg("SHOWING ANSWER");
+        }
+        draw();
+    }
+
+    function quitGame() {
+        state.isPaused = false;
+        state.currentChallenge = null;
+        if(state.timerId) clearInterval(state.timerId);
+        if(state.autoNextId) clearInterval(state.autoNextId);
+        
+        document.getElementById('pauseControls').style.display = 'none';
+        document.getElementById('startBtn').style.display = 'flex';
+        
+        document.getElementById('chordDisplay').innerText = "READY";
+        document.getElementById('chordDetail').innerText = "System Idle";
+        resetTimer();
+        updateMsg("GAME STOPPED");
+        // ゲーム終了時に初期の高得点表示に戻すことも可能ですが、
+        // 今回はゲーム終了時の状態（スコア0など）を表示します。
+        updateScoreUI();
+        draw();
+    }
+    
+    function generateNext() {
+        if(state.isPaused) return;
+
+        if(state.autoNextId) { clearInterval(state.autoNextId); state.autoNextId = null; }
+
+        state.questionCount++; 
+        saveRecords(); 
+        resetTimer(); 
+        state.markers = [];
+        
+        const isHard = getSetting('chkHardMode');
+        const targetRoots = isHard ? allRoots : allRoots.filter(r => easyRoots.includes(r.note));
+        const rRoot = targetRoots[Math.floor(Math.random() * targetRoots.length)];
+        
+        const rootMode = getRootMode();
+        let targetString;
+        if (rootMode === '6') targetString = 6;
+        else if (rootMode === '5') targetString = 5;
+        else if (rootMode === '4') targetString = 4;
+        else targetString = [6, 5, 4][Math.floor(Math.random() * 3)];
+        
+        let baseFret = rRoot.pos[targetString];
+        if(baseFret < 3 && Math.random() > 0.5) baseFret += 12;
+
+        let shapeData = (targetString===6) ? shapeLogic.root6 : (targetString===5 ? shapeLogic.root5 : shapeLogic.root4);
+        const rShape = shapeData[Math.floor(Math.random() * shapeData.length)];
+        const rootPC = rRoot.val;
+        const validIntervals = intervalsMap[rShape.type];
+        const validPCs = validIntervals.map(iv => (rootPC + iv) % 12);
+        
+        const exampleNotes = rShape.strIndices.map((s, i) => ({
+            s:s, f:baseFret + rShape.offsets[i], isRoot:(i===0)
+        }));
+
+        const rootColor = targetString===6 ? "#FF2E55" : (targetString===5 ? "#FFD700" : "#00E5FF");
+
+        state.currentChallenge = {
+            name: rRoot.note + rShape.type,
+            detail: `${targetString}th String Root / ${rShape.desc}`,
+            rootFret: baseFret, rootString: targetString, rootPC: rootPC, validPCs: validPCs, exampleNotes: exampleNotes, badgeColor: rootColor
+        };
+
+        const disp = document.getElementById('chordDisplay');
+        disp.innerText = state.currentChallenge.name;
+        document.getElementById('chordDetail').innerText = state.currentChallenge.detail;
+        
+        const rt = document.getElementById('rootTag');
+        rt.innerText = `ROOT ON ${targetString}`;
+        rt.style.background = rootColor;
+        rt.style.color = (targetString===5) ? "#000" : "#fff";
+
+        state.isAnswerRevealed = false;
+        updateScoreUI();
+
+        if(getSetting('chkAutoPlay')) setTimeout(playChord, 300);
+        updateMsg("FIND THE CHORD TONES");
+        draw();
+        if(getSetting('chkTimer')) startTimer(100);
+    }
+
+    function getLabel(pc, rootPC) {
+        if(getLabelMode() === 'note') return noteNames[pc];
+        const labels = {0:"R",1:"b2",2:"2",3:"b3",4:"3",5:"4",6:"b5",7:"5",8:"b6",9:"6",10:"b7",11:"7"};
+        return labels[(pc - rootPC + 12) % 12];
+    }
+
+    // --- Timer ---
+    function startTimer(startVal = 100) {
+        if(state.timerId) clearInterval(state.timerId);
+        state.timeLeft = startVal;
+        const bar = document.getElementById('timerBar');
+        bar.style.boxShadow = "0 0 10px var(--primary-glow)";
+        bar.style.background = "var(--primary)";
+        
+        state.timerId = setInterval(() => {
+            if(state.isPaused) return; 
+            state.timeLeft -= 100 / (state.maxTimeMs / 50);
+            bar.style.width = Math.max(0, state.timeLeft) + "%";
+            if(state.timeLeft <= 20) {
+                bar.style.background = "var(--danger)";
+                bar.style.boxShadow = "0 0 10px rgba(255, 46, 85, 0.6)";
+            }
+            if(state.timeLeft <= 0) { clearInterval(state.timerId); timeUp(); }
+        }, 50);
+    }
+    function resetTimer() { if(state.timerId) clearInterval(state.timerId); document.getElementById('timerBar').style.width = "100%"; }
+    
+    function timeUp() { 
+        state.isAnswerRevealed=true; 
+        saveRecords(); draw(); playChord();
+        triggerAutoNext("TIME UP");
+    }
+
+    function triggerAutoNext(reason) {
+        if(getSetting('chkAutoNext')) {
+            let count = 3;
+            updateMsg(`${reason} // NEXT IN ${count}...`);
+            if(state.autoNextId) clearInterval(state.autoNextId);
+            
+            state.autoNextId = setInterval(() => {
+                if(state.isPaused) return;
+                count--;
+                if(count > 0) {
+                    updateMsg(`${reason} // NEXT IN ${count}...`);
+                } else {
+                    clearInterval(state.autoNextId);
+                    state.autoNextId = null;
+                    generateNext();
+                }
+            }, 1000);
+        } else {
+            updateMsg(`${reason} // SHOWING ANSWER`);
+        }
+    }
+
+    // --- Scoring ---
+    function registerHit(isCorrect) {
+        if(!getSetting('chkTimer') || state.isAnswerRevealed || state.isPaused) return;
+        if(isCorrect) {
+            state.combo++;
+            state.score += 100 + (state.combo * 10);
+            const cmb = document.getElementById('comboVal');
+            cmb.style.transform = "scale(1.2)";
+            cmb.style.borderColor = "#fff";
+            setTimeout(() => { cmb.style.transform="scale(1)"; cmb.style.borderColor="rgba(0,230,118,0.2)"; }, 150);
+        } else {
+            state.combo = 0;
+        }
+        updateScoreUI();
+    }
+    function updateScoreUI() {
+        document.getElementById('scoreVal').innerText = state.score;
+        document.getElementById('comboVal').innerText = `COMBO ${state.combo}`;
+        document.getElementById('battleCount').innerText = records.battleCount;
+        document.getElementById('qCount').innerText = state.questionCount;
+    }
+    function updateMsg(t) { document.getElementById('msgBox').innerText = t; }
+
+    // ========================================================
+    // Drawing & Responsive Handling (Retina Ready)
+    // ========================================================
+    const canvas = document.getElementById('fretboard');
+    const ctx = canvas.getContext('2d');
+    const container = document.querySelector('.canvas-container');
+
+    function resizeCanvas() {
+        const aspect = 900 / 280; 
+        const containerWidth = container.clientWidth; 
+        const displayWidth = containerWidth - 20; 
+        const displayHeight = displayWidth / aspect;
+        const dpr = window.devicePixelRatio || 1;
+        
+        canvas.width = displayWidth * dpr;
+        canvas.height = displayHeight * dpr;
+        canvas.style.width = displayWidth + 'px';
+        canvas.style.height = displayHeight + 'px';
+
+        ctx.scale(dpr, dpr);
+        
+        canvas.logicalWidth = displayWidth;
+        canvas.logicalHeight = displayHeight;
+
+        draw();
+    }
+
+    function draw() {
+        const w = canvas.logicalWidth || 900;
+        const h = canvas.logicalHeight || 280;
+        
+        ctx.clearRect(0,0,w,h);
+        
+        const grd = ctx.createLinearGradient(0,0,0,h);
+        grd.addColorStop(0, "#2a2a2a");
+        grd.addColorStop(1, "#1a1a1a");
+        ctx.fillStyle = grd;
+        ctx.fillRect(0,0,w,h);
+
+        const pad = w < 500 ? 15 : 35; 
+        const fretW = (w - pad*2) / 16;
+        const strH = (h - pad*2) / 5;
+
+        let centerFret = (state.currentChallenge && !state.isPaused) ? state.currentChallenge.rootFret : 5;
+        if(state.isPaused && state.currentChallenge) centerFret = state.currentChallenge.rootFret; 
+
+        let startFret = Math.max(0, centerFret - 5);
+        if(startFret > 8) startFret = centerFret - 6;
+
+        ctx.textAlign = "center";
+        
+        // Frets
+        for(let i=0; i<=16; i++) {
+            let fretNum = startFret + i;
+            let x = pad + i*fretW;
+            ctx.shadowBlur = 0; ctx.strokeStyle = "#555"; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(x, pad); ctx.lineTo(x, h-pad); ctx.stroke();
+            ctx.strokeStyle = "#888"; ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(x-1, pad); ctx.lineTo(x-1, h-pad); ctx.stroke();
+
+            // Inlays
+            if([3,5,7,9,12,15,17].includes(fretNum)) {
+                ctx.fillStyle = "#444"; 
+                ctx.shadowColor="rgba(0,0,0,0.8)"; ctx.shadowBlur=2;
+                let yPos = (fretNum===12) ? [h/3, h*2/3] : [h/2];
+                let dotSize = w < 500 ? 4 : (fretNum===12?6:7); 
+                yPos.forEach(y => {
+                    ctx.beginPath(); ctx.arc(x-fretW/2, y, dotSize, 0, Math.PI*2); ctx.fill();
+                });
+                ctx.shadowBlur=0;
+            }
+            // Fret Numbers
+            if(fretNum >= 0) { 
+                ctx.fillStyle="#666"; 
+                ctx.font = w < 500 ? "600 10px Inter" : "600 12px Inter";
+                ctx.fillText(fretNum, x-fretW/2, h-(w<500?4:8)); 
+            }
+        }
+
+        // Strings
+        for(let i=0; i<6; i++) {
+            let y = h - pad - i*strH;
+            ctx.shadowBlur = 2; ctx.shadowColor = "#000";
+            ctx.strokeStyle = (i < 2) ? "#999" : "#b0b0b0";
+            ctx.lineWidth = 1 + (5-i)*(w<500 ? 0.4 : 0.6); 
+            ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(w-pad, y); ctx.stroke();
+            ctx.shadowBlur = 0;
+        }
+
+        if(!state.currentChallenge) return;
+        if(state.isPaused) {
+            ctx.fillStyle = "rgba(0,0,0,0.5)";
+            ctx.fillRect(0,0,w,h);
+            ctx.fillStyle = "#fff";
+            ctx.font = w < 500 ? "bold 24px Inter" : "bold 40px Inter";
+            ctx.fillText("PAUSED", w/2, h/2);
+            return;
+        }
+
+        const drawNote = (s, f, type, labelOverride=null) => {
+            let relativeFret = f - startFret;
+            if(relativeFret < 0 || relativeFret >= 16) return;
+            let mx = pad + relativeFret * fretW - fretW/2;
+            let my = h - pad - s * strH;
+            
+            let color, glow, txtColor;
+            if(type === 'correct') { color="#00E676"; glow="rgba(0,230,118,0.6)"; txtColor="#000"; }
+            else if(type === 'miss') { color="#FF2E55"; glow="rgba(255,46,85,0.6)"; txtColor="#fff"; }
+            else if(type === 'answer') { color="#FFD700"; glow="rgba(255,215,0,0.6)"; txtColor="#000"; }
+            else if(type === 'root') { color=state.currentChallenge.badgeColor; glow=color; txtColor="#000"; }
+
+            const radius = w < 500 ? 10 : 14;
+
+            ctx.shadowBlur = 15; ctx.shadowColor = glow;
+            ctx.fillStyle = color;
+            ctx.beginPath(); ctx.arc(mx, my, radius, 0, Math.PI*2); ctx.fill();
+            ctx.shadowBlur = 0;
+            
+            ctx.fillStyle = "rgba(255,255,255,0.3)";
+            ctx.beginPath(); ctx.arc(mx-(radius*0.3), my-(radius*0.3), radius*0.35, 0, Math.PI*2); ctx.fill();
+
+            const midi = openStringMidi[s] + f;
+            const label = labelOverride || getLabel(midi % 12, state.currentChallenge.rootPC);
+            ctx.fillStyle = txtColor; 
+            ctx.font = w < 500 ? "bold 9px Inter" : "bold 12px Inter";
+            ctx.textAlign = "center"; ctx.textBaseline = "middle";
+            ctx.fillText(label, mx, my+1);
+        };
+
+        state.markers.forEach(m => drawNote(m.s, m.f, m.isCorrect ? 'correct' : 'miss'));
+
+        if(state.isAnswerRevealed) {
+            state.currentChallenge.exampleNotes.forEach(n => {
+                const alreadyHit = state.markers.some(m => m.s===n.s && m.f===n.f && m.isCorrect);
+                if(!alreadyHit) drawNote(n.s, n.f, 'answer');
+            });
+        } else if(getSetting('chkRootOnly')) {
+            state.currentChallenge.exampleNotes.forEach(n => {
+                if(n.isRoot) drawNote(n.s, n.f, 'root');
+            });
+        }
+    }
+
+    function updateDraw() {
+        if(!canvas.logicalWidth) resizeCanvas();
+        else draw();
+    }
+
+    // --- Interaction ---
+    function handleTouch(e) {
+        if(!sampler || !state.currentChallenge || state.isAnswerRevealed || state.isPaused) return;
+        
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.logicalWidth / rect.width;
+        const scaleY = canvas.logicalHeight / rect.height;
+        
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
+        
+        const w = canvas.logicalWidth;
+        const h = canvas.logicalHeight;
+        const pad = w < 500 ? 15 : 35;
+        
+        const strH = (h - pad*2) / 5;
+        const stringIdx = Math.round((h - pad - y) / strH);
+        
+        const fretW = (w - pad*2) / 16;
+        let relativeFret = Math.ceil((x - pad) / fretW);
+        if(x < pad) relativeFret = 0;
+        
+        let centerFret = state.currentChallenge.rootFret;
+        let startFret = Math.max(0, centerFret - 5);
+        if(startFret > 8) startFret = centerFret - 6;
+        let clickedFret = startFret + relativeFret;
+
+        if(stringIdx>=0 && stringIdx<=5 && clickedFret>=0 && clickedFret<=24) {
+            const midi = openStringMidi[stringIdx] + clickedFret;
+            const isCorrect = state.currentChallenge.validPCs.includes(midi % 12);
+            playGuitarTone(stringIdx, clickedFret);
+            if(isCorrect) {
+                if(synthHit) synthHit.triggerAttackRelease(Tone.Frequency(midi, "midi").toNote(), "32n");
+                updateMsg(`PERFECT HIT // COMBO ${state.combo+1}`);
+            } else {
+                if(synthMiss) synthMiss.triggerAttackRelease("C2", "32n");
+                updateMsg("MISS // WRONG INTERVAL");
+            }
+            state.markers.push({s:stringIdx, f:clickedFret, isCorrect:isCorrect});
+            registerHit(isCorrect);
+            draw();
+        }
+    }
+
+    canvas.addEventListener('mousedown', (e) => handleTouch(e));
+    canvas.addEventListener('touchstart', (e) => { 
+        e.preventDefault(); 
+        handleTouch(e.touches[0]); 
+    }, {passive: false});
+
+    window.addEventListener('resize', () => {
+        resizeCanvas();
+    });
+
+    // Init
+    loadRecords();
+    document.getElementById('startBtn').onclick = initAudio;
+    document.getElementById('nextBtn').onclick = generateNext;
+    document.getElementById('stopBtn').onclick = pauseGame;
+    document.getElementById('resumeBtn').onclick = resumeGame;
+    document.getElementById('quitBtn').onclick = quitGame;
+
+    document.getElementById('cheatBtn').onclick = () => {
+        if(state.isAnswerRevealed || state.isPaused) return;
+        state.isAnswerRevealed = true;
+        if(state.timerId) clearInterval(state.timerId);
+        saveRecords(); draw(); playChord();
+        triggerAutoNext("REVEALED");
+    };
+    
+    setTimeout(resizeCanvas, 100);
+
+</script>
+</body>
+</html>
