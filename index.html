@@ -3,11 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Jazz Chord Degree Game</title>
+    <title>Chord Degree Game</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
     <style>
-        /* --- CSSは前回の完璧なレスポンシブ版を維持 --- */
         :root {
             --bg-deep: #050505;
             --bg-surface: #141414;
@@ -21,6 +20,7 @@
             --text-sub: #888888;
             --border: rgba(255, 255, 255, 0.1);
             --radius: 16px;
+            --modal-bg: rgba(10, 10, 10, 0.85);
         }
 
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -42,7 +42,7 @@
             overflow-x: hidden;
         }
 
-        /* --- Header / Stats Grid (Responsive Bento) --- */
+        /* --- Header / Stats Grid --- */
         .header-grid {
             display: grid;
             grid-template-columns: 1fr auto 1fr;
@@ -51,6 +51,7 @@
             max-width: 900px;
             margin-bottom: 24px;
             align-items: center;
+            position: relative; /* For help button absolute positioning if needed */
         }
 
         .brand h1 {
@@ -88,6 +89,24 @@
             display: inline-block;
             margin-top: 8px;
         }
+
+        /* Help Button - UI Legend Addition */
+        .help-btn {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid var(--border);
+            width: 36px; height: 36px;
+            border-radius: 50%;
+            color: var(--text-main);
+            font-weight: 700;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: 0.2s;
+            margin-left: auto;
+        }
+        .help-btn:hover { background: var(--primary); color: #000; border-color: var(--primary); }
 
         .stats-mini {
             text-align: right;
@@ -337,23 +356,125 @@
             font-size: 12px; color: var(--text-sub); margin-bottom: 6px; display: block;
         }
 
+        /* --- Manual Modal (UI Legend Addition) --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--modal-bg);
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            padding: 20px;
+        }
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .modal-card {
+            background: #181818;
+            width: 100%;
+            max-width: 600px;
+            max-height: 85vh;
+            border-radius: 24px;
+            border: 1px solid var(--border);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transform: scale(0.95);
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .modal-overlay.active .modal-card { transform: scale(1); }
+
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255,255,255,0.02);
+        }
+        .modal-title { font-size: 20px; font-weight: 800; color: #fff; }
+        .close-modal {
+            background: rgba(255,255,255,0.1);
+            border: none;
+            width: 32px; height: 32px;
+            border-radius: 50%;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 18px;
+        }
+        
+        .modal-content {
+            padding: 24px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* Manual Bento Grid */
+        .manual-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        .manual-item {
+            background: rgba(255,255,255,0.03);
+            padding: 16px;
+            border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .manual-item.full { grid-column: span 2; }
+        .m-icon { font-size: 24px; margin-bottom: 8px; display: block; }
+        .m-head { font-size: 14px; font-weight: 700; color: var(--text-main); margin-bottom: 4px; display: block; }
+        .m-desc { font-size: 12px; color: var(--text-sub); line-height: 1.5; }
+        .key-hl { color: var(--primary); font-weight: 700; }
+
+        .modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid var(--border);
+            text-align: center;
+        }
+        .close-btn-lg {
+            width: 100%;
+            background: #fff;
+            color: #000;
+        }
+
         /* --- Mobile Responsive Tweaks --- */
         @media (max-width: 600px) {
             body { padding: 12px; }
             .header-grid { 
-                grid-template-columns: 1fr 1fr; 
+                grid-template-columns: 1fr auto; 
                 gap: 12px;
                 margin-bottom: 16px;
             }
-            .brand { grid-column: 1 / -1; text-align: center; }
-            .brand h1 { font-size: 24px; }
-            .score-hero { text-align: left; }
-            .stats-mini { text-align: right; }
+            .brand { grid-column: 1 / 2; text-align: left; }
+            .brand h1 { font-size: 20px; }
+            .help-btn { grid-column: 2 / 3; width: 40px; height: 40px; } /* Easier to tap */
+            
+            .score-hero { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.05); padding: 12px 16px; border-radius: 12px; margin-top: 8px;}
+            .score-val { font-size: 24px; margin: 0; }
+            .combo-badge { margin: 0; }
+            
+            .stats-mini { display: none; } /* Simplify for mobile */
+
             .control-deck { padding: 16px; gap: 16px; }
             .action-row button { font-size: 14px; padding: 14px; }
+            
             .settings-grid { grid-template-columns: 1fr 1fr; }
             .settings-grid > div:nth-child(1),
             .settings-grid > div:nth-child(2) { grid-column: 1 / -1; }
+
+            .manual-grid { grid-template-columns: 1fr; }
+            .manual-item.full { grid-column: span 1; }
         }
     </style>
 </head>
@@ -361,9 +482,11 @@
 
     <header class="header-grid">
         <div class="brand">
-            <h1>Jazz Chord Degree Game</h1>
+            <h1>Chord Degree Game</h1>
             <div class="battle-info">BATTLE: <span id="battleCount">15</span></div>
         </div>
+
+        <button class="help-btn" id="helpTrigger" aria-label="How to play">?</button>
         
         <div class="score-hero">
             <div id="scoreVal" class="score-val">12800</div>
@@ -465,6 +588,50 @@
         </div>
     </div>
 
+    <div id="manualModal" class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-header">
+                <span class="modal-title">SYSTEM MANUAL</span>
+                <button class="close-modal" id="modalCloseIcon">×</button>
+            </div>
+            <div class="modal-content">
+                <div class="manual-grid">
+                    <div class="manual-item full">
+                        <span class="m-icon">🎯</span>
+                        <span class="m-head">OBJECTIVE</span>
+                        <div class="m-desc">表示されたコード（例: <span class="key-hl">C Maj7</span>）の構成音（3rd, 5th, 7th）を指板上で特定してください。ルート音は自動的に表示されます。</div>
+                    </div>
+                    <div class="manual-item">
+                        <span class="m-icon">👆</span>
+                        <span class="m-head">CONTROLS</span>
+                        <div class="m-desc">指板をタップして解答。正解で<span class="key-hl">緑</span>、不正解で<span class="key-hl">赤</span>に光ります。</div>
+                    </div>
+                    <div class="manual-item">
+                        <span class="m-icon">🧠</span>
+                        <span class="m-head">MODE</span>
+                        <div class="m-desc">
+                            <strong>Degree:</strong> 度数（3, b7等）を表示。<br>
+                            <strong>Note:</strong> 音名（E, Bb等）を表示。
+                        </div>
+                    </div>
+                    <div class="manual-item">
+                        <span class="m-icon">🔥</span>
+                        <span class="m-head">COMBO</span>
+                        <div class="m-desc">連続正解でスコアボーナスが発生。ミスするとコンボは0に戻ります。</div>
+                    </div>
+                    <div class="manual-item">
+                        <span class="m-icon">⏱️</span>
+                        <span class="m-head">TIMER</span>
+                        <div class="m-desc">時間切れになると答えが表示され、次の問題へ進みます。</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-primary close-btn-lg" id="modalCloseBtn">UNDERSTOOD</button>
+            </div>
+        </div>
+    </div>
+
 <script>
     // ========================================================
     // Logic 
@@ -482,13 +649,12 @@
         {note:"Bb",val:10,pos:{6:6,5:1,4:8}}, {note:"B",val:11,pos:{6:7,5:2,4:9}}, {note:"C",val:0,pos:{6:8,5:3,4:10}}, {note:"Db",val:1,pos:{6:9,5:4,4:11}}, {note:"D",val:2,pos:{6:10,5:5,4:0}}, {note:"Eb",val:3,pos:{6:11,5:6,4:1}}
     ];
 
-    // JSの初期状態も高得点にしておくことで、ロード後の一瞬の表示崩れを防ぐ
     let state = { 
         currentChallenge:null, 
         isAnswerRevealed:false, 
         isPaused: false,
-        score: 12800, // 初期スコア高得点
-        combo: 16,    // 初期コンボ
+        score: 12800, 
+        combo: 16,    
         questionCount: 16,
         timerId:null, 
         timeLeft:100, 
@@ -496,7 +662,6 @@
         markers:[], 
         autoNextId: null 
     };
-    // レコードの初期値も高く設定（localStorageがない場合用）
     let records = { highScore: 24500, maxCombo: 32, battleCount: 15 };
 
     // --- UI Helpers ---
@@ -527,6 +692,25 @@
         });
     });
 
+    // --- Manual Modal Logic (Legendary Coder addition) ---
+    const modal = document.getElementById('manualModal');
+    const helpBtn = document.getElementById('helpTrigger');
+    const closeBtns = [document.getElementById('modalCloseIcon'), document.getElementById('modalCloseBtn')];
+
+    function openModal() {
+        modal.classList.add('active');
+        // ゲーム中なら自動的にポーズする
+        if(state.currentChallenge && !state.isPaused && !state.isAnswerRevealed) {
+            pauseGame();
+        }
+    }
+    function closeModal() {
+        modal.classList.remove('active');
+    }
+    helpBtn.addEventListener('click', openModal);
+    closeBtns.forEach(b => b.addEventListener('click', closeModal));
+    modal.addEventListener('click', (e) => { if(e.target === modal) closeModal(); });
+
     const getSetting = (id) => document.getElementById(id)?.checked || false;
     const getLabelMode = () => document.querySelector('input[name="dispMode"]:checked').value;
     const getRootMode = () => document.querySelector('input[name="rootMode"]:checked').value;
@@ -534,8 +718,6 @@
     function loadRecords() {
         const saved = localStorage.getItem('chord_degree_records'); 
         if(saved) records = JSON.parse(saved);
-        // ここではupdateScoreUIを呼ばないことで、HTMLの初期高得点表示を維持する
-        // updateScoreUI(); 
     }
     function saveRecords(incrementBattle=false) {
         if(incrementBattle) records.battleCount = (records.battleCount || 0) + 1;
@@ -577,13 +759,12 @@
 
     // --- Game Logic ---
     function startGame() { 
-        // ゲーム開始時はスコアをリセットする
         state.score=0; 
         state.combo=0; 
         state.questionCount=0; 
         state.isPaused = false;
         saveRecords(true); 
-        updateScoreUI(); // ここで表示が0になる
+        updateScoreUI(); 
         
         document.getElementById('startBtn').style.display = 'none';
         document.getElementById('gameControls').style.display = 'flex';
@@ -642,8 +823,6 @@
         document.getElementById('chordDetail').innerText = "System Idle";
         resetTimer();
         updateMsg("GAME STOPPED");
-        // ゲーム終了時に初期の高得点表示に戻すことも可能ですが、
-        // 今回はゲーム終了時の状態（スコア0など）を表示します。
         updateScoreUI();
         draw();
     }
